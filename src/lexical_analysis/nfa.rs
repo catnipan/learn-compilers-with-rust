@@ -18,6 +18,17 @@ impl NFAOne {
       .collect()
   }
 
+  fn is_accept(&self, state: NFAState) -> bool {
+    let mut has_state = vec![false; self.states_size];
+    for s in state { has_state[s] = true; }
+    for &s in &self.accept {
+      if has_state[s] {
+        return true;
+      }
+    }
+    false
+  }
+
   pub fn e_closure(&self, mut state: NFAState) -> NFAState {
     let mut has_state: Vec<bool> = vec![false; self.states_size];
     for &s in &state { has_state[s] = true; }
@@ -41,22 +52,63 @@ impl NFAOne {
     }
     NFAOne::gen_state(has_state)
   }
-}
 
-impl Automaton for NFAOne {
-  fn test(&self, s: &str) -> bool {
+  fn simulate_by_converting_to_dfa(&self, s: &str) -> bool {
     let mut curr_state = self.e_closure(vec![self.start]);
     for chr in s.chars() {
       curr_state = self.e_closure(self.transition(curr_state, chr));
     }
-    let mut has_state = vec![false; self.states_size];
-    for s in curr_state { has_state[s] = true; }
-    for &s in &self.accept {
-      if has_state[s] {
-        return true;
+    self.is_accept(curr_state)
+  }
+
+  fn simulate_on_the_fly(&self, s: &str) -> bool {
+    let mut curr_stack = vec![];
+    let mut next_stack = vec![];
+    let mut already_on = vec![false; self.states_size];
+    fn add_state(
+      s: usize,
+      next_stack: &mut Vec<usize>,
+      already_on: &mut Vec<bool>,
+      trans_func: &Box<dyn Fn(usize, Option<char>) -> NFAState>,
+    ) {
+      next_stack.push(s);
+      already_on[s] = true;
+      // add state and also calculate e-closure
+      for t in trans_func(s, None) {
+        if !already_on[t] {
+          add_state(t, next_stack, already_on, trans_func);
+        }
       }
     }
-    false
+
+    // init e-closure of s0
+    add_state(self.start, &mut curr_stack, &mut already_on, &self.transition_func);
+    for &s in &curr_stack { already_on[s] = false; } // reset already_on
+
+    for chr in s.chars() {
+      
+      for state in curr_stack {
+        for t in (self.transition_func)(state, Some(chr)) {
+          if !already_on[t] {
+            next_stack.push(t);
+            add_state(t, &mut next_stack, &mut already_on, &self.transition_func);
+          }
+        }
+      }
+      curr_stack = next_stack;
+      next_stack = vec![];
+      for &s in &curr_stack {
+        already_on[s] = false; // reset
+      }
+    }
+    self.is_accept(curr_stack)
+  }
+}
+
+impl Automaton for NFAOne {
+  fn test(&self, s: &str) -> bool {
+    // self.simulate_by_converting_to_dfa(s)
+    self.simulate_on_the_fly(s)
   }
 }
 
