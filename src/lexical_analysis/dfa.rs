@@ -1,8 +1,6 @@
-trait Automaton {
-  fn test(&self, s: &str) -> bool;
-}
+use super::automaton::{Automaton};
 
-struct DFAOne {
+pub struct DFAOne {
   start: usize,
   accept: Vec<usize>,
   transition_func: Box<dyn Fn(usize, char) -> usize>,
@@ -20,7 +18,7 @@ impl Automaton for DFAOne {
 
 #[cfg(test)]
 mod tests {
-
+  
   use super::*;
 
   #[test]
