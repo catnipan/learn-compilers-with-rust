@@ -46,19 +46,8 @@ impl NFAOne {
 impl Automaton for NFAOne {
   fn test(&self, s: &str) -> bool {
     let mut curr_state = self.e_closure(self.start.clone());
-
     for chr in s.chars() {
-      let mut has_state = vec![false; self.states_size];
-      let mut next_state = vec![];
-      for s in curr_state {
-        for ns in (self.transition_func)(s, Some(chr)) {
-          if !has_state[ns] {
-            has_state[ns] = true;
-            next_state.push(ns);
-          }
-        }
-      }
-      curr_state = self.e_closure(next_state);
+      curr_state = self.e_closure(self.transition(curr_state, chr));
     }
     let mut has_state = vec![false; self.states_size];
     for s in curr_state { has_state[s] = true; }
