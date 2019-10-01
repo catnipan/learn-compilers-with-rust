@@ -4,7 +4,7 @@ pub type NFAState = Vec<usize>;
 
 pub struct NFAOne {
   pub states_size: usize,
-  pub start: NFAState,
+  pub start: usize,
   pub accept: NFAState,
   pub transition_func: Box<dyn Fn(usize, Option<char>) -> NFAState>,
 }
@@ -45,7 +45,7 @@ impl NFAOne {
 
 impl Automaton for NFAOne {
   fn test(&self, s: &str) -> bool {
-    let mut curr_state = self.e_closure(self.start.clone());
+    let mut curr_state = self.e_closure(vec![self.start]);
     for chr in s.chars() {
       curr_state = self.e_closure(self.transition(curr_state, chr));
     }
@@ -69,7 +69,7 @@ mod tests {
   fn test_instance_1() {
     let nfa_one = NFAOne {
       states_size: 11,
-      start: vec![0],
+      start: 0,
       accept: vec![10],
       transition_func: Box::new(|s: usize, chr: Option<char>| {
           match (s, chr) {

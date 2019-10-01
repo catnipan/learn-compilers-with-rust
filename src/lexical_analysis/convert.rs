@@ -11,7 +11,7 @@ fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
   let mut stack = vec![];
   let mut transition_map: HashMap<(usize, char), usize> = HashMap::new();
 
-  let start = nfa.e_closure(nfa.start.clone());
+  let start = nfa.e_closure(vec![nfa.start]);
   stack.push(start.clone());
   new_state_map.insert(start, new_state_idx);
   is_marked.push(false);
@@ -70,7 +70,7 @@ mod tests {
   fn test_instance_1() {
     let nfa_one = NFAOne {
       states_size: 11,
-      start: vec![0],
+      start: 0,
       accept: vec![10],
       transition_func: Box::new(|s: usize, chr: Option<char>| {
           match (s, chr) {
