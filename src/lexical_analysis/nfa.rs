@@ -1,12 +1,12 @@
 use super::automaton::{Automaton};
 
-type NFAState = Vec<usize>;
+pub type NFAState = Vec<usize>;
 
 pub struct NFAOne {
-  states_size: usize,
-  start: NFAState,
-  accept: NFAState,
-  transition_func: Box<dyn Fn(usize, Option<char>) -> NFAState>,
+  pub states_size: usize,
+  pub start: NFAState,
+  pub accept: NFAState,
+  pub transition_func: Box<dyn Fn(usize, Option<char>) -> NFAState>,
 }
 
 impl NFAOne {
@@ -18,7 +18,7 @@ impl NFAOne {
       .collect()
   }
 
-  fn e_closure(&self, mut state: NFAState) -> NFAState {
+  pub fn e_closure(&self, mut state: NFAState) -> NFAState {
     let mut has_state: Vec<bool> = vec![false; self.states_size];
     for &s in &state { has_state[s] = true; }
     while let Some(curr) = state.pop() {
@@ -32,7 +32,7 @@ impl NFAOne {
     NFAOne::gen_state(has_state)
   }
 
-  fn transition(&self, state: NFAState, chr: char) -> NFAState {
+  pub fn transition(&self, state: NFAState, chr: char) -> NFAState {
     let mut has_state: Vec<bool> = vec![false; self.states_size];
     for &s in &state {
       for n in (self.transition_func)(s, Some(chr)) {
@@ -67,26 +67,25 @@ mod tests {
 
   #[test]
   fn test_instance_1() {
-    // nfa for (a|b)*abb
     let nfa_one = NFAOne {
       states_size: 11,
       start: vec![0],
       accept: vec![10],
       transition_func: Box::new(|s: usize, chr: Option<char>| {
-         match (s, chr) {
-           (0, None) => vec![1, 7],
-           (1, None) => vec![2, 4],
-           (2, Some('a')) => vec![3],
-           (4, Some('b')) => vec![5],
-           (3, None) => vec![6],
-           (5, None) => vec![6],
-           (6, None) => vec![1, 7],
-           (7, None) => vec![0],
-           (7, Some('a')) => vec![8],
-           (8, Some('b')) => vec![9],
-           (9, Some('b')) => vec![10],
-           _ => vec![],
-         }
+          match (s, chr) {
+            (0, None) => vec![1, 7],
+            (1, None) => vec![2, 4],
+            (2, Some('a')) => vec![3],
+            (4, Some('b')) => vec![5],
+            (3, None) => vec![6],
+            (5, None) => vec![6],
+            (6, None) => vec![1, 7],
+            (7, None) => vec![0],
+            (7, Some('a')) => vec![8],
+            (8, Some('b')) => vec![9],
+            (9, Some('b')) => vec![10],
+            _ => vec![],
+          }
       }),
     };
 

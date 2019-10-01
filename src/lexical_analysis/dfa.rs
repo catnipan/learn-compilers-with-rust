@@ -1,9 +1,9 @@
 use super::automaton::{Automaton};
 
 pub struct DFAOne {
-  start: usize,
-  accept: Vec<usize>,
-  transition_func: Box<dyn Fn(usize, char) -> usize>,
+  pub start: usize,
+  pub accept: Vec<usize>,
+  pub transition_func: Box<dyn Fn(usize, char) -> usize>,
 }
 
 impl Automaton for DFAOne {
