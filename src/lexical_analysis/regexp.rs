@@ -1,0 +1,252 @@
+use super::nfa::*;
+use std::collections::HashMap;
+use super::automaton::Automaton;
+
+struct NFABasic {
+  start: usize,
+  accept: usize,
+}
+
+type TransitionMapType = HashMap<(usize, Option<char>), Vec<usize>>;
+
+struct NFAConstructor {
+  state_idx: usize,
+  transition_map: TransitionMapType,
+}
+
+impl NFAConstructor {
+  fn new() -> Self {
+    NFAConstructor {
+      state_idx: 0,
+      transition_map: HashMap::new(),
+    }
+  }
+
+  fn gen_new_state_idx(&mut self) -> usize {
+    let res = self.state_idx;
+    self.state_idx += 1;
+    res
+  }
+
+  fn add_new_transition(&mut self, from: usize, by: Option<char>, to: usize) {
+    self.transition_map.entry((from, by)).or_insert(vec![]).push(to);
+  }
+
+  fn construct_singleton(&mut self, input: Option<char>) -> NFABasic {
+    let start = self.gen_new_state_idx();
+    let accept = self.gen_new_state_idx();
+    self.add_new_transition(start, input, accept);
+    NFABasic {
+      start,
+      accept,
+    }
+  }
+
+  fn construct_e(&mut self) -> NFABasic {
+    self.construct_singleton(None)
+  }
+
+  fn construct_single_char(&mut self, chr: char) -> NFABasic {
+    self.construct_singleton(Some(chr))
+  }
+
+  fn union(&mut self, nfa_a: NFABasic, nfa_b: NFABasic) -> NFABasic {
+    let start = self.gen_new_state_idx();
+    let accept = self.gen_new_state_idx();
+    self.add_new_transition(start, None, nfa_a.start);
+    self.add_new_transition(start, None, nfa_b.start);
+    self.add_new_transition(nfa_a.accept, None, accept);
+    self.add_new_transition(nfa_b.accept, None, accept);
+    NFABasic {
+      start,
+      accept,
+    }
+  }
+
+  fn concat(&mut self, nfa_a: NFABasic, nfa_b: NFABasic) -> NFABasic {
+    self.add_new_transition(nfa_a.accept, None, nfa_b.start);
+    NFABasic {
+      start: nfa_a.start,
+      accept: nfa_b.accept,
+    }
+  }
+
+  fn closure(&mut self, nfa: NFABasic) -> NFABasic {
+    let start = self.gen_new_state_idx();
+    let end = self.gen_new_state_idx();
+    self.add_new_transition(start, None, end);
+    self.add_new_transition(start, None, nfa.start);
+    self.add_new_transition(nfa.accept, None, nfa.start);
+    self.add_new_transition(nfa.accept, None, end);
+    NFABasic {
+      start,
+      accept: end,
+    }
+  }
+}
+
+impl From<&str> for NFAOne {
+  fn from(regexp: &str) -> Self {
+
+    #[derive(Copy, Clone)]
+    enum RegOp { Eof = 0, Paren = 1, Union = 2, Concat = 3, Closure = 4 }
+    struct StackFrame {
+      op_stack: Vec<RegOp>,
+      item_stack: Vec<NFABasic>,
+    }
+
+    let mut nfa_constructor = NFAConstructor::new();
+    let mut stack: Vec<StackFrame> = vec![StackFrame {
+      op_stack: vec![RegOp::Eof],
+      item_stack: vec![]
+    }];
+
+    fn reduce_frame(frame: &mut StackFrame, nfa_constructor: &mut NFAConstructor, new_op: RegOp) {
+      while let Some(top_op) = frame.op_stack.pop() {
+        if (top_op as i32) < (new_op as i32) {
+          frame.op_stack.push(top_op); // push back, top_op has lower priority
+          break;
+        }
+        match top_op {
+          RegOp::Eof | RegOp::Paren => {}, // do nothing
+          RegOp::Union => {
+            let operand_right = frame.item_stack.pop().expect("parse fail at union");
+            let operand_left = frame.item_stack.pop().expect("parse fail at union");
+            frame.item_stack.push(nfa_constructor.union(operand_left, operand_right));
+          },
+          RegOp::Concat => {
+            let operand_right = frame.item_stack.pop().expect("parse fail at concat");
+            let operand_left = frame.item_stack.pop().expect("parse fail at concat");
+            frame.item_stack.push(nfa_constructor.concat(operand_left, operand_right));
+          },
+          RegOp::Closure => {
+            let operand = frame.item_stack.pop().expect("parse fail at closure");
+            frame.item_stack.push(nfa_constructor.closure(operand));
+          }
+        }
+      }
+      frame.op_stack.push(new_op);
+    }
+
+    let mut is_last_reg_item = false;
+    for chr in regexp.chars() {
+      match chr {
+        '(' => {
+          if is_last_reg_item { 
+            reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Concat);
+          }
+          stack.push(StackFrame { op_stack: vec![RegOp::Paren], item_stack: vec![] });
+          is_last_reg_item = false;
+        },
+        ')' => {
+          let mut current_frame = stack.pop().expect("parse error at )");
+          reduce_frame(&mut current_frame, &mut nfa_constructor, RegOp::Paren);
+          assert!(current_frame.item_stack.len() <= 1, "current frame error");
+          let frame_res = if current_frame.item_stack.is_empty() {
+            nfa_constructor.construct_e()
+          } else {
+            current_frame.item_stack.pop().unwrap()
+          };
+          stack.last_mut().expect("stack empty error").item_stack.push(frame_res);
+          is_last_reg_item = true;
+        },
+        '|' => {
+          reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Union);
+          is_last_reg_item = false;
+        },
+        '*' => {
+          reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Closure);
+          is_last_reg_item = true;
+        },
+        chr => { // alphabet like a,b,c,d
+          if is_last_reg_item { 
+            reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Concat);
+          }
+          stack.last_mut().expect("no stack frame").item_stack.push(nfa_constructor.construct_single_char(chr));
+          is_last_reg_item = true;
+        }
+      }
+    }
+    // finally reduce frame with RegOp::Eof
+
+    assert!(stack.len() == 1, "parse error: stack should be reduced to 1");
+    let mut stack_frame = stack.pop().unwrap();
+    reduce_frame(&mut stack_frame, &mut nfa_constructor, RegOp::Eof);
+
+    assert!(stack_frame.item_stack.len() <= 1);
+    let res = if stack_frame.item_stack.is_empty() {
+      nfa_constructor.construct_e()
+    } else {
+      stack_frame.item_stack.pop().unwrap()
+    };
+    NFAOne {
+      states_size: nfa_constructor.state_idx,
+      start: res.start,
+      accept: vec![res.accept],
+      transition_func: Box::new(move |state: usize, input: Option<char>| {
+        match nfa_constructor.transition_map.get(&(state, input)) {
+          Some(states) => states.clone(),
+          None => vec![],
+        }
+      })
+    }
+  }
+}
+
+pub struct RegExp(NFAOne);
+
+impl RegExp {
+  pub fn new(reg_exp: &str) -> Self {
+    RegExp(NFAOne::from(reg_exp))
+  }
+
+  pub fn test(&self, test_str: &str) -> bool {
+    self.0.test(test_str)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn regexp_instance_1() {
+    let regexp = RegExp::new("(a|b)*abb");
+    assert!(regexp.test("ababb"));
+    assert!(!regexp.test("abab"));
+    assert!(regexp.test("abababababababb"));
+    assert!(regexp.test("abb"));
+    assert!(!regexp.test("ab"));
+  }
+
+  #[test]
+  fn regexp_instance_2() {
+    let regexp = RegExp::new("(a|bc)*abb");
+    assert!(regexp.test("abcabb"));
+    assert!(regexp.test("aabb"));
+    assert!(regexp.test("bcabb"));
+    assert!(regexp.test("abcaabb"));
+    assert!(regexp.test("abcbcaabb"));
+    assert!(regexp.test("abcbcabcaabb"));
+    assert!(!regexp.test("abcbcabcaabbc"));
+    assert!(!regexp.test("abcbcabbc"));
+  }
+
+  #[test]
+  fn regexp_number() {
+    let num_exp = RegExp::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(()|(.(0|1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*))");
+    assert!(num_exp.test("0"));
+    assert!(num_exp.test("4"));
+    assert!(num_exp.test("10"));
+    assert!(num_exp.test("1323423"));
+    assert!(!num_exp.test("01323423"));
+    assert!(!num_exp.test("00"));
+    assert!(!num_exp.test("010"));
+    assert!(num_exp.test("0.1"));
+    assert!(num_exp.test("0.01"));
+    assert!(!num_exp.test("0."));
+    assert!(num_exp.test("0.123"));
+    assert!(!num_exp.test("01.123"));
+    assert!(!num_exp.test("01."));
+  }
+}
