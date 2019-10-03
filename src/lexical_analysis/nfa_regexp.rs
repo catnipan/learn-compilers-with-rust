@@ -240,17 +240,20 @@ impl From<&str> for NFAOne {
   }
 }
 
-pub struct RegExp(NFAOne);
+pub struct RegExpNFA(NFAOne);
 
-impl RegExp {
+impl RegExpNFA {
   pub fn new(reg_exp: &str) -> Self {
-    RegExp(NFAOne::from(reg_exp))
+    RegExpNFA(NFAOne::from(reg_exp))
   }
+}
 
-  pub fn test(&self, test_str: &str) -> bool {
+impl Automaton for RegExpNFA {
+  fn test(&self, test_str: &str) -> bool {
     self.0.test(test_str)
   }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -258,7 +261,7 @@ mod tests {
 
   #[test]
   fn regexp_instance_1() {
-    let regexp = RegExp::new("(a|b)*abb");
+    let regexp = RegExpNFA::new("(a|b)*abb");
     assert!(regexp.test("ababb"));
     assert!(!regexp.test("abab"));
     assert!(regexp.test("abababababababb"));
@@ -268,7 +271,7 @@ mod tests {
 
   #[test]
   fn regexp_instance_2() {
-    let regexp = RegExp::new("(a|bc)*abb");
+    let regexp = RegExpNFA::new("(a|bc)*abb");
     assert!(regexp.test("abcabb"));
     assert!(regexp.test("aabb"));
     assert!(regexp.test("bcabb"));
@@ -281,7 +284,7 @@ mod tests {
 
   #[test]
   fn regexp_number() {
-    let num_exp = RegExp::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?");
+    let num_exp = RegExpNFA::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?");
     assert!(num_exp.test("0"));
     assert!(num_exp.test("4"));
     assert!(num_exp.test("10"));
