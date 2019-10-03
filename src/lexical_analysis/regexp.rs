@@ -71,30 +71,64 @@ impl NFAConstructor {
     }
   }
 
-  fn closure(&mut self, nfa: NFABasic) -> NFABasic {
+  fn closure_basic(
+    &mut self,
+    nfa: NFABasic,
+    has_start_to_end: bool,
+    has_inner_end_to_start: bool,
+  ) -> NFABasic {
     let start = self.gen_new_state_idx();
     let end = self.gen_new_state_idx();
-    self.add_new_transition(start, None, end);
     self.add_new_transition(start, None, nfa.start);
-    self.add_new_transition(nfa.accept, None, nfa.start);
     self.add_new_transition(nfa.accept, None, end);
+
+    if has_start_to_end {
+      self.add_new_transition(start, None, end);
+    }
+    if has_inner_end_to_start {
+      self.add_new_transition(nfa.accept, None, nfa.start);
+    }
     NFABasic {
       start,
       accept: end,
     }
   }
+
+  fn closure(&mut self, nfa: NFABasic) -> NFABasic {
+    self.closure_basic(nfa, true, true)
+  }
+
+  fn closure_plus(&mut self, nfa: NFABasic) -> NFABasic {
+    self.closure_basic(nfa, false, true)
+  }
+
+  fn question_mark(&mut self, nfa: NFABasic) -> NFABasic {
+    self.closure_basic(nfa, true, false)
+  }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum RegOp { Eof, Paren, Union, Concat, Closure, Plus, Question }
+
+impl RegOp {
+  fn get_priority(&self) -> i32 {
+    match self {
+      RegOp::Eof => 0,
+      RegOp::Paren => 1,
+      RegOp::Union => 2,
+      RegOp::Concat => 3,
+      RegOp::Closure | RegOp::Plus | RegOp::Question => 4,
+    }
+  }
+}
+
+struct StackFrame {
+  op_stack: Vec<RegOp>,
+  item_stack: Vec<NFABasic>,
 }
 
 impl From<&str> for NFAOne {
   fn from(regexp: &str) -> Self {
-
-    #[derive(Copy, Clone)]
-    enum RegOp { Eof = 0, Paren = 1, Union = 2, Concat = 3, Closure = 4 }
-    struct StackFrame {
-      op_stack: Vec<RegOp>,
-      item_stack: Vec<NFABasic>,
-    }
-
     let mut nfa_constructor = NFAConstructor::new();
     let mut stack: Vec<StackFrame> = vec![StackFrame {
       op_stack: vec![RegOp::Eof],
@@ -103,26 +137,34 @@ impl From<&str> for NFAOne {
 
     fn reduce_frame(frame: &mut StackFrame, nfa_constructor: &mut NFAConstructor, new_op: RegOp) {
       while let Some(top_op) = frame.op_stack.pop() {
-        if (top_op as i32) < (new_op as i32) {
+        if top_op.get_priority() < new_op.get_priority() {
           frame.op_stack.push(top_op); // push back, top_op has lower priority
           break;
         }
         match top_op {
           RegOp::Eof | RegOp::Paren => {}, // do nothing
-          RegOp::Union => {
-            let operand_right = frame.item_stack.pop().expect("parse fail at union");
-            let operand_left = frame.item_stack.pop().expect("parse fail at union");
-            frame.item_stack.push(nfa_constructor.union(operand_left, operand_right));
+          RegOp::Union | RegOp::Concat => { // binary operator
+            let operand_right = frame.item_stack.pop().expect(&format!("parse fail at {:?}", top_op));
+            let operand_left = frame.item_stack.pop().expect(&format!("parse fail at {:?}", top_op));
+            frame.item_stack.push(
+              match top_op {
+                RegOp::Union => nfa_constructor.union(operand_left, operand_right),
+                RegOp::Concat => nfa_constructor.concat(operand_left, operand_right),
+                _ => unreachable!(),
+              }
+            );
           },
-          RegOp::Concat => {
-            let operand_right = frame.item_stack.pop().expect("parse fail at concat");
-            let operand_left = frame.item_stack.pop().expect("parse fail at concat");
-            frame.item_stack.push(nfa_constructor.concat(operand_left, operand_right));
+          RegOp::Closure | RegOp::Plus | RegOp::Question => {
+            let operand = frame.item_stack.pop().expect(&format!("parse fail at {:?}", top_op));
+            frame.item_stack.push(
+              match top_op {
+                RegOp::Closure => nfa_constructor.closure(operand),
+                RegOp::Plus => nfa_constructor.closure_plus(operand),
+                RegOp::Question => nfa_constructor.question_mark(operand),
+                _ => unreachable!(),
+              }
+            );
           },
-          RegOp::Closure => {
-            let operand = frame.item_stack.pop().expect("parse fail at closure");
-            frame.item_stack.push(nfa_constructor.closure(operand));
-          }
         }
       }
       frame.op_stack.push(new_op);
@@ -154,8 +196,13 @@ impl From<&str> for NFAOne {
           reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Union);
           is_last_reg_item = false;
         },
-        '*' => {
-          reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Closure);
+        '*' | '?' | '+' => {
+          reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, match chr {
+            '*' => RegOp::Closure,
+            '?' => RegOp::Question,
+            '+' => RegOp::Plus,
+            _ => unreachable!(),
+          });
           is_last_reg_item = true;
         },
         chr => { // alphabet like a,b,c,d
@@ -234,7 +281,7 @@ mod tests {
 
   #[test]
   fn regexp_number() {
-    let num_exp = RegExp::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(()|(.(0|1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*))");
+    let num_exp = RegExp::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?");
     assert!(num_exp.test("0"));
     assert!(num_exp.test("4"));
     assert!(num_exp.test("10"));
