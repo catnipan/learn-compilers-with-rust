@@ -93,7 +93,9 @@ impl DFAOne {
     let new_start = parti.which_group(self.start);
     let mut new_transition_map: HashMap<char, Vec<usize>> = HashMap::new();
     for chr in input.chars() {
-      let ts: Vec<_> = (0..new_states_size).map(|s| (self.transition_func)(parti.group_ids_map[s][0], chr)).collect();
+      let ts: Vec<_> = (0..new_states_size)
+        .map(|s| parti.which_group((self.transition_func)(parti.group_ids_map[s][0], chr)))
+        .collect();
       new_transition_map.insert(chr, ts);
     }
 
@@ -172,10 +174,17 @@ mod tests {
     };
     let min_dfa = dfa.state_minimization("ab");
     assert_eq!(min_dfa.states_size, 4);
-    assert!(dfa.test("aabb"));
-    assert!(!dfa.test("abbb"));
-    assert!(dfa.test("abb"));
-    assert!(dfa.test("abababaabb"));
+    assert!(min_dfa.test("aabb"));
+    assert!(!min_dfa.test("abbb"));
+    assert!(min_dfa.test("abb"));
+    assert!(min_dfa.test("abababaabb"));
+
+    let minmin_dfa = min_dfa.state_minimization("ab");
+    assert_eq!(minmin_dfa.states_size, 4);
+    assert!(minmin_dfa.test("aabb"));
+    assert!(!minmin_dfa.test("abbb"));
+    assert!(minmin_dfa.test("abb"));
+    assert!(minmin_dfa.test("abababaabb"));
   }
 }
 
