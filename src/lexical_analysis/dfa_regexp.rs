@@ -270,11 +270,9 @@ impl RegExpDFA {
 
     let mut dfa_builder = DFABuilder::new();
     let ast = parse_ast_regexp(reg_exp);
-    println!("{:?}", ast);
     let root_info = traverse_ast(&ast, &mut dfa_builder);
     let end_idx = dfa_builder.end_idx.expect("invalid end marker");
 
-    println!("{:?}", dfa_builder);
 
     let mut state_idx = 0;
     let mut states_idx_map: HashMap<Vec<usize>, usize> = HashMap::new();
