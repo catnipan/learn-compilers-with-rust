@@ -1,6 +1,7 @@
 use super::nfa::*;
 use std::collections::HashMap;
 use super::automaton::Automaton;
+use super::regop::RegOp;
 
 struct NFABasic {
   start: usize,
@@ -107,28 +108,15 @@ impl NFAConstructor {
   }
 }
 
-#[derive(Copy, Clone, Debug)]
-enum RegOp { Eof, Paren, Union, Concat, Closure, Plus, Question }
-
-impl RegOp {
-  fn get_priority(&self) -> i32 {
-    match self {
-      RegOp::Eof => 0,
-      RegOp::Paren => 1,
-      RegOp::Union => 2,
-      RegOp::Concat => 3,
-      RegOp::Closure | RegOp::Plus | RegOp::Question => 4,
-    }
-  }
-}
-
 struct StackFrame {
   op_stack: Vec<RegOp>,
   item_stack: Vec<NFABasic>,
 }
 
-impl From<&str> for NFAOne {
-  fn from(regexp: &str) -> Self {
+pub struct RegExpNFA(NFAOne);
+
+impl RegExpNFA {
+  pub fn new(reg_exp: &str) -> Self {
     let mut nfa_constructor = NFAConstructor::new();
     let mut stack: Vec<StackFrame> = vec![StackFrame {
       op_stack: vec![RegOp::Eof],
@@ -171,7 +159,7 @@ impl From<&str> for NFAOne {
     }
 
     let mut is_last_reg_item = false;
-    for chr in regexp.chars() {
+    for chr in reg_exp.chars() {
       match chr {
         '(' => {
           if is_last_reg_item { 
@@ -226,7 +214,7 @@ impl From<&str> for NFAOne {
     } else {
       stack_frame.item_stack.pop().unwrap()
     };
-    NFAOne {
+    RegExpNFA(NFAOne {
       states_size: nfa_constructor.state_idx,
       start: res.start,
       accept: vec![res.accept],
@@ -236,15 +224,7 @@ impl From<&str> for NFAOne {
           None => vec![],
         }
       })
-    }
-  }
-}
-
-pub struct RegExpNFA(NFAOne);
-
-impl RegExpNFA {
-  pub fn new(reg_exp: &str) -> Self {
-    RegExpNFA(NFAOne::from(reg_exp))
+    })
   }
 }
 
