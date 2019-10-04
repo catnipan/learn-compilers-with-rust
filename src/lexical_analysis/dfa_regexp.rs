@@ -334,6 +334,7 @@ impl RegExpDFA {
     }).collect();
 
     RegExpDFA(DFAOne {
+      states_size: dfa_builder.pos_idx,
       start: 0,
       accept,
       transition_func: Box::new(move |s: usize, chr: char| {

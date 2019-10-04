@@ -53,6 +53,7 @@ fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
   }).collect();
 
   DFAOne {
+    states_size: new_state_idx,
     start: 0,
     accept,
     transition_func: Box::new(move |s: usize, chr: char| {
