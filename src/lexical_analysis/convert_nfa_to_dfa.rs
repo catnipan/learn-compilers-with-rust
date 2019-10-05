@@ -1,10 +1,8 @@
 use super::dfa::DFAOne;
 use super::nfa::{NFAOne, NFAState};
-use super::automaton::Automaton;
-
 use std::collections::HashMap;
 
-fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
+pub fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
   let mut new_state_idx: usize = 0;
   let mut new_state_map: HashMap<NFAState, usize> = HashMap::new();
   let mut is_marked = vec![];
@@ -25,7 +23,7 @@ fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
     }
     is_marked[curr_state_idx] = true;
     for chr in input_set.chars() {
-      let new_state = nfa.e_closure(nfa.transition(curr_state.clone(), chr));
+      let new_state = nfa.e_closure(nfa.transition(&curr_state, chr));
       let new_state_idx = match new_state_map.get(&new_state) {
         Some(idx) => *idx,
         None => {
@@ -54,10 +52,10 @@ fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
 
   DFAOne {
     states_size: new_state_idx,
-    start: 0,
+    start: Some(0),
     accept,
     transition_func: Box::new(move |s: usize, chr: char| {
-      *transition_map.get(&(s, chr)).expect("not implemented")
+      transition_map.get(&(s, chr)).map(|s| *s)
     })
   }
 }
@@ -66,6 +64,7 @@ fn convert_nfa_to_dfa(nfa: NFAOne, input_set: &str) -> DFAOne {
 mod tests {
   
   use super::*;
+  use super::super::automaton::Automaton;
 
   #[test]
   fn test_instance_1() {

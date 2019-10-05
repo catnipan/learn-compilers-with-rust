@@ -1,6 +1,5 @@
 use super::regop::RegOp;
 use super::dfa::DFAOne;
-use super::automaton::Automaton;
 use std::collections::{HashSet, HashMap};
 
 #[derive(Copy, Clone, Debug)]
@@ -216,14 +215,13 @@ impl TraverseInfo {
   }
 }
 
-struct RegExpDFA(DFAOne);
 
 fn set_union(set_a: Vec<usize>, set_b: Vec<usize>) -> Vec<usize> {
   set_a.into_iter().chain(set_b.into_iter()).collect::<HashSet<usize>>().into_iter().collect()
 }
 
-impl RegExpDFA {
-  fn new(reg_exp: &str, input: &str) -> Self {
+impl DFAOne {
+  fn from_regexp(reg_exp: &str, input: &str) -> DFAOne {
     fn traverse_ast(node: &RegASTNode, builder: &mut DFABuilder) -> TraverseInfo {
       match node {
         RegASTNode::LeafEmpty => TraverseInfo::new_empty(),
@@ -333,30 +331,25 @@ impl RegExpDFA {
       }
     }).collect();
 
-    RegExpDFA(DFAOne {
+    DFAOne {
       states_size: dfa_builder.pos_idx,
-      start: 0,
+      start: Some(0),
       accept,
       transition_func: Box::new(move |s: usize, chr: char| {
-        *transition_map.get(&(s, chr)).expect(&format!("invalid input {}", chr))
+        transition_map.get(&(s, chr)).map(|to_s| *to_s)
       })
-    })
-  }
-}
-
-impl Automaton for RegExpDFA {
-  fn test(&self, test_str: &str) -> bool {
-    self.0.test(test_str)
+    }
   }
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
+  use super::super::automaton::Automaton;
 
   #[test]
   fn regexp_instance_1() {
-    let regexp = RegExpDFA::new("(a|b)*abb", "ab");
+    let regexp = DFAOne::from_regexp("(a|b)*abb", "ab");
     assert!(regexp.test("ababb"));
     assert!(!regexp.test("abab"));
     assert!(regexp.test("abababababababb"));
@@ -366,7 +359,7 @@ mod tests {
 
   #[test]
   fn regexp_instance_2() {
-    let regexp = RegExpDFA::new("(a|bc)*abb", "abc");
+    let regexp = DFAOne::from_regexp("(a|bc)*abb", "abc");
     assert!(regexp.test("abcabb"));
     assert!(regexp.test("aabb"));
     assert!(regexp.test("bcabb"));
@@ -379,7 +372,7 @@ mod tests {
 
   #[test]
   fn regexp_number() {
-    let num_exp = RegExpDFA::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?", "0123456789.");
+    let num_exp = DFAOne::from_regexp("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?", "0123456789.");
     assert!(num_exp.test("0"));
     assert!(num_exp.test("4"));
     assert!(num_exp.test("10"));

@@ -1,4 +1,4 @@
-use super::automaton::{Automaton};
+use super::automaton::Automaton;
 
 pub type NFAState = Vec<usize>;
 
@@ -18,9 +18,9 @@ impl NFAOne {
       .collect()
   }
 
-  fn is_accept(&self, state: NFAState) -> bool {
+  fn is_state_accept(&self, state: &NFAState) -> bool {
     let mut has_state = vec![false; self.states_size];
-    for s in state { has_state[s] = true; }
+    for &s in state { has_state[s] = true; }
     for &s in &self.accept {
       if has_state[s] {
         return true;
@@ -43,9 +43,9 @@ impl NFAOne {
     NFAOne::gen_state(has_state)
   }
 
-  pub fn transition(&self, state: NFAState, chr: char) -> NFAState {
+  pub fn transition(&self, state: &NFAState, chr: char) -> NFAState {
     let mut has_state: Vec<bool> = vec![false; self.states_size];
-    for &s in &state {
+    for &s in state {
       for n in (self.transition_func)(s, Some(chr)) {
         has_state[n] = true;
       }
@@ -53,12 +53,13 @@ impl NFAOne {
     NFAOne::gen_state(has_state)
   }
 
+  #[allow(dead_code)]
   fn simulate_by_converting_to_dfa(&self, s: &str) -> bool {
     let mut curr_state = self.e_closure(vec![self.start]);
     for chr in s.chars() {
-      curr_state = self.e_closure(self.transition(curr_state, chr));
+      curr_state = self.e_closure(self.transition(&curr_state, chr));
     }
-    self.is_accept(curr_state)
+    self.is_state_accept(&curr_state)
   }
 
   fn simulate_on_the_fly(&self, s: &str) -> bool {
@@ -101,11 +102,26 @@ impl NFAOne {
         already_on[s] = false; // reset
       }
     }
-    self.is_accept(curr_stack)
+    self.is_state_accept(&curr_stack)
   }
 }
 
 impl Automaton for NFAOne {
+  type State = Vec<usize>;
+
+  fn init_state(&self) -> Self::State {
+    self.e_closure(vec![self.start])
+  }
+  fn is_dead(&self, s: &Self::State) -> bool {
+    s.is_empty()
+  }
+  fn is_accept(&self, s: &Self::State) -> bool {
+    self.is_state_accept(s)
+  }
+  fn transition(&self, s: &Self::State, chr: char) -> Self::State {
+    self.transition(s, chr)
+  }
+
   fn test(&self, s: &str) -> bool {
     // self.simulate_by_converting_to_dfa(s)
     self.simulate_on_the_fly(s)

@@ -113,10 +113,8 @@ struct StackFrame {
   item_stack: Vec<NFABasic>,
 }
 
-pub struct RegExpNFA(NFAOne);
-
-impl RegExpNFA {
-  pub fn new(reg_exp: &str) -> Self {
+impl NFAOne {
+  pub fn from_regexp(reg_exp: &str) -> Self {
     let mut nfa_constructor = NFAConstructor::new();
     let mut stack: Vec<StackFrame> = vec![StackFrame {
       op_stack: vec![RegOp::Eof],
@@ -214,7 +212,7 @@ impl RegExpNFA {
     } else {
       stack_frame.item_stack.pop().unwrap()
     };
-    RegExpNFA(NFAOne {
+    NFAOne {
       states_size: nfa_constructor.state_idx,
       start: res.start,
       accept: vec![res.accept],
@@ -224,13 +222,7 @@ impl RegExpNFA {
           None => vec![],
         }
       })
-    })
-  }
-}
-
-impl Automaton for RegExpNFA {
-  fn test(&self, test_str: &str) -> bool {
-    self.0.test(test_str)
+    }
   }
 }
 
@@ -241,7 +233,7 @@ mod tests {
 
   #[test]
   fn regexp_instance_1() {
-    let regexp = RegExpNFA::new("(a|b)*abb");
+    let regexp = NFAOne::from_regexp("(a|b)*abb");
     assert!(regexp.test("ababb"));
     assert!(!regexp.test("abab"));
     assert!(regexp.test("abababababababb"));
@@ -251,7 +243,7 @@ mod tests {
 
   #[test]
   fn regexp_instance_2() {
-    let regexp = RegExpNFA::new("(a|bc)*abb");
+    let regexp = NFAOne::from_regexp("(a|bc)*abb");
     assert!(regexp.test("abcabb"));
     assert!(regexp.test("aabb"));
     assert!(regexp.test("bcabb"));
@@ -264,7 +256,7 @@ mod tests {
 
   #[test]
   fn regexp_number() {
-    let num_exp = RegExpNFA::new("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?");
+    let num_exp = NFAOne::from_regexp("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?");
     assert!(num_exp.test("0"));
     assert!(num_exp.test("4"));
     assert!(num_exp.test("10"));
