@@ -2,6 +2,7 @@ use super::nfa::*;
 use std::collections::HashMap;
 use super::automaton::Automaton;
 use super::regop::RegOp;
+use super::escape_chars::{EscapeChars, MaybeEsc};
 
 struct NFABasic {
   start: usize,
@@ -157,16 +158,16 @@ impl NFAOne {
     }
 
     let mut is_last_reg_item = false;
-    for chr in reg_exp.chars() {
+    for chr in EscapeChars::new(reg_exp.chars()) {
       match chr {
-        '(' => {
+        MaybeEsc::NonEsc('(') => {
           if is_last_reg_item { 
             reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Concat);
           }
           stack.push(StackFrame { op_stack: vec![RegOp::Paren], item_stack: vec![] });
           is_last_reg_item = false;
         },
-        ')' => {
+        MaybeEsc::NonEsc(')') => {
           let mut current_frame = stack.pop().expect("parse error at )");
           reduce_frame(&mut current_frame, &mut nfa_constructor, RegOp::Paren);
           assert!(current_frame.item_stack.len() <= 1, "current frame error");
@@ -178,12 +179,14 @@ impl NFAOne {
           stack.last_mut().expect("stack empty error").item_stack.push(frame_res);
           is_last_reg_item = true;
         },
-        '|' => {
+        MaybeEsc::NonEsc('|') => {
           reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Union);
           is_last_reg_item = false;
         },
-        '*' | '?' | '+' => {
-          reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, match chr {
+         MaybeEsc::NonEsc('*')
+         | MaybeEsc::NonEsc('?')
+         | MaybeEsc::NonEsc('+') => {
+          reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, match chr.get_chr() {
             '*' => RegOp::Closure,
             '?' => RegOp::Question,
             '+' => RegOp::Plus,
@@ -191,7 +194,8 @@ impl NFAOne {
           });
           is_last_reg_item = true;
         },
-        chr => { // alphabet like a,b,c,d
+        maybe_esc_chr => { // alphabet like a,b,c,d
+          let chr = maybe_esc_chr.get_chr();
           if is_last_reg_item { 
             reduce_frame(stack.last_mut().unwrap(), &mut nfa_constructor, RegOp::Concat);
           }
@@ -256,10 +260,11 @@ mod tests {
 
   #[test]
   fn regexp_number() {
-    let num_exp = NFAOne::from_regexp("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?");
+    let num_exp = NFAOne::from_regexp("((1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0)(.(0|1|2|3|4|5|6|7|8|9)+)?");
     assert!(num_exp.test("0"));
     assert!(num_exp.test("4"));
     assert!(num_exp.test("10"));
+    assert!(num_exp.test("12.34"));
     assert!(num_exp.test("1323423"));
     assert!(!num_exp.test("01323423"));
     assert!(!num_exp.test("00"));

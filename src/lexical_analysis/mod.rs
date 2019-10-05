@@ -1,7 +1,9 @@
-pub mod automaton;
-pub mod dfa;
-pub mod nfa;
-pub mod convert_nfa_to_dfa;
-pub mod nfa_regexp;
-pub mod dfa_regexp;
-pub mod regop;
+mod automaton;
+mod dfa;
+mod nfa;
+mod convert_nfa_to_dfa;
+mod nfa_regexp;
+mod dfa_regexp;
+mod regop;
+mod escape_chars;
+pub mod lexer;

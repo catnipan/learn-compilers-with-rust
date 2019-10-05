@@ -25,7 +25,7 @@ struct AutomatonRunner<T: Automaton> {
   curr_state: T::State,
   automaton: T,
 }
-
+   
 impl <T: Automaton> AutomatonRunner<T> {
   fn new(automaton: T) -> Self {
     AutomatonRunner {
@@ -34,6 +34,10 @@ impl <T: Automaton> AutomatonRunner<T> {
     }
   }
 
+  fn is_dead(&self) -> bool {
+    self.automaton.is_dead(&self.curr_state)
+  }
+ 
   fn is_accept(&self) -> bool {
     self.automaton.is_accept(&self.curr_state)
   }

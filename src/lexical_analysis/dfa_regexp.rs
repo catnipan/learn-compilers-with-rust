@@ -1,6 +1,7 @@
 use super::regop::RegOp;
 use super::dfa::DFAOne;
 use std::collections::{HashSet, HashMap};
+use super::escape_chars::{EscapeChars, MaybeEsc};
 
 #[derive(Copy, Clone, Debug)]
 pub enum NodeType {
@@ -84,9 +85,9 @@ pub fn parse_ast_regexp(reg_exp: &str) -> RegASTNode {
   }
 
   let mut is_last_item = false;
-  for chr in reg_exp.chars() {
+  for chr in EscapeChars::new(reg_exp.chars()) {
     match chr {
-      '(' => {
+      MaybeEsc::NonEsc('(') => {
         if is_last_item { push_new_op(&mut curr_stackframe, RegOp::Concat); }
         stack.push(curr_stackframe);
         curr_stackframe = StackFrame {
@@ -95,7 +96,7 @@ pub fn parse_ast_regexp(reg_exp: &str) -> RegASTNode {
         };
         is_last_item = false;
       },
-      ')' => {
+      MaybeEsc::NonEsc(')') => {
         push_new_op(&mut curr_stackframe, RegOp::Paren);
         assert!(curr_stackframe.item_stack.len() <= 1, "current frame error");
         let frame_res = if curr_stackframe.item_stack.is_empty() {
@@ -107,12 +108,14 @@ pub fn parse_ast_regexp(reg_exp: &str) -> RegASTNode {
         curr_stackframe.item_stack.push(frame_res);
         is_last_item = true;
       },
-      '|' => {
+      MaybeEsc::NonEsc('|') => {
         push_new_op(&mut curr_stackframe, RegOp::Union);
         is_last_item = false;
       },
-      '*' | '?' | '+' => {
-        push_new_op(&mut curr_stackframe, match chr {
+      MaybeEsc::NonEsc('*')
+      | MaybeEsc::NonEsc('?')
+      | MaybeEsc::NonEsc('+') => {
+        push_new_op(&mut curr_stackframe, match chr.get_chr() {
           '*' => RegOp::Closure,
           '?' => RegOp::Question,
           '+' => RegOp::Plus,
@@ -120,7 +123,8 @@ pub fn parse_ast_regexp(reg_exp: &str) -> RegASTNode {
         });
         is_last_item = true;
       },
-      chr => {
+      maybe_esc_chr => {
+        let chr = maybe_esc_chr.get_chr();
         if is_last_item { push_new_op(&mut curr_stackframe, RegOp::Concat); }
         curr_stackframe.item_stack.push(RegASTNode::Leaf(chr));
         is_last_item = true;
@@ -221,7 +225,7 @@ fn set_union(set_a: Vec<usize>, set_b: Vec<usize>) -> Vec<usize> {
 }
 
 impl DFAOne {
-  fn from_regexp(reg_exp: &str, input: &str) -> DFAOne {
+  pub fn from_regexp(reg_exp: &str, input: &str) -> DFAOne {
     fn traverse_ast(node: &RegASTNode, builder: &mut DFABuilder) -> TraverseInfo {
       match node {
         RegASTNode::LeafEmpty => TraverseInfo::new_empty(),
@@ -372,10 +376,11 @@ mod tests {
 
   #[test]
   fn regexp_number() {
-    let num_exp = DFAOne::from_regexp("(1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0(.(0|1|2|3|4|5|6|7|8|9)+)?", "0123456789.");
+    let num_exp = DFAOne::from_regexp("((1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*|0)(.(0|1|2|3|4|5|6|7|8|9)+)?", "0123456789.");
     assert!(num_exp.test("0"));
     assert!(num_exp.test("4"));
     assert!(num_exp.test("10"));
+    assert!(num_exp.test("10.32"));
     assert!(num_exp.test("1323423"));
     assert!(!num_exp.test("01323423"));
     assert!(!num_exp.test("00"));
